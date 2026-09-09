@@ -1,0 +1,18 @@
+vendor/
+composer.lock
+
+# Banco local do SQLite, criado pelas migrations
+*.sqlite
+*.sqlite3
+*.db
+
+.env
+.env.local
+
+*.log
+.phpunit.result.cache
+
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

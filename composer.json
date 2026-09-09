@@ -1,0 +1,22 @@
+{
+    "name": "marcusbomfim/gestao-obras",
+    "description": "Sistema de acompanhamento de obras: diário de obra, avanço físico e medição.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.1",
+        "ext-mbstring": "*",
+        "ext-pdo": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "GestaoObras\\": "src/"
+        }
+    },
+    "scripts": {
+        "teste": "php testes/executar.php"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
