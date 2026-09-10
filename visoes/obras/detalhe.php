@@ -1,0 +1,128 @@
+<?php $obra = $resumo->obra; $atraso = $obra->diasDeAtraso($hoje); ?>
+
+<nav class="trilha"><a href="/obras">Obras</a> › <?= e($obra->codigo) ?></nav>
+
+<header class="cabecalho-obra">
+    <div>
+        <h1 class="titulo"><?= e($obra->nome) ?></h1>
+        <p class="cabecalho-obra__cliente"><?= e($obra->cliente) ?></p>
+        <p class="cabecalho-obra__endereco"><?= e($obra->endereco->emUmaLinha()) ?></p>
+        <p class="cabecalho-obra__responsavel">
+            Responsável técnico: <?= e($obra->responsavelTecnico) ?>
+            (<?= e($obra->registroProfissional) ?>)
+        </p>
+    </div>
+
+    <div class="cabecalho-obra__acoes">
+        <span class="etiqueta etiqueta--<?= e($obra->situacao()->value) ?>">
+            <?= e($obra->situacao()->rotulo()) ?>
+        </span>
+        <a class="botao" href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios">Diários</a>
+        <?php if ($obra->situacao()->aceitaExecucao()): ?>
+            <a class="botao botao--primario"
+               href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/novo">Novo diário</a>
+        <?php endif ?>
+    </div>
+</header>
+
+<section class="painel">
+    <article class="indicador">
+        <span class="indicador__rotulo">Avanço físico</span>
+        <strong class="indicador__valor"><?= e(numeroBr($resumo->percentualFisico())) ?>%</strong>
+        <span class="indicador__nota">ponderado pelo valor dos serviços</span>
+    </article>
+    <article class="indicador">
+        <span class="indicador__rotulo">Valor previsto</span>
+        <strong class="indicador__valor"><?= e(reais($resumo->valorPrevisto())) ?></strong>
+    </article>
+    <article class="indicador">
+        <span class="indicador__rotulo">Executado</span>
+        <strong class="indicador__valor"><?= e(reais($resumo->valorExecutado())) ?></strong>
+        <span class="indicador__nota">saldo de <?= e(reais($resumo->saldoAExecutar())) ?></span>
+    </article>
+    <article class="indicador">
+        <span class="indicador__rotulo">Prazo</span>
+        <strong class="indicador__valor">
+            <?= $atraso > 0 ? e($atraso) . ' dia' . ($atraso > 1 ? 's' : '') : 'em dia' ?>
+        </strong>
+        <span class="indicador__nota">
+            <?= e(dataBr($obra->dataDeInicio)) ?> a <?= e(dataBr($obra->dataPrevistaDeTermino())) ?>
+        </span>
+    </article>
+</section>
+
+<h2 class="subtitulo">Serviços do orçamento</h2>
+
+<?php if ($servicos === []): ?>
+    <section class="cartao cartao--vazio">
+        <p>Esta obra ainda não tem serviços no orçamento.</p>
+    </section>
+<?php else: ?>
+    <div class="rolagem">
+        <table class="tabela">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th class="numerico">Previsto</th>
+                    <th class="numerico">Executado</th>
+                    <th class="numerico">Saldo</th>
+                    <th class="avanco-coluna">Avanço</th>
+                    <th class="numerico">Valor executado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($servicos as $servico): ?>
+                    <tr<?= $servico->estaConcluido() ? ' class="linha--concluida"' : '' ?>>
+                        <td class="codigo"><?= e($servico->codigo) ?></td>
+                        <td><?= e($servico->descricao) ?></td>
+                        <td class="numerico"><?= e($servico->unidade->formatar($servico->quantidadePrevista)) ?></td>
+                        <td class="numerico"><?= e($servico->unidade->formatar($servico->quantidadeExecutada())) ?></td>
+                        <td class="numerico"><?= e($servico->unidade->formatar($servico->saldo())) ?></td>
+                        <td>
+                            <div class="avanco avanco--linha">
+                                <div class="avanco__trilho">
+                                    <div class="avanco__barra" style="width: <?= e(barraDeAvanco($servico->percentualExecutado())) ?>%"></div>
+                                </div>
+                                <span class="avanco__numero"><?= e(numeroBr($servico->percentualExecutado())) ?>%</span>
+                            </div>
+                        </td>
+                        <td class="numerico"><?= e(reais($servico->valorExecutado())) ?></td>
+                    </tr>
+                <?php endforeach ?>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="6">Total</th>
+                    <td class="numerico"><?= e(reais($resumo->valorExecutado())) ?></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+<?php endif ?>
+
+<h2 class="subtitulo">Últimos diários</h2>
+
+<?php if ($ultimosDiarios === []): ?>
+    <section class="cartao cartao--vazio">
+        <p>Nenhum diário registrado para esta obra.</p>
+    </section>
+<?php else: ?>
+    <ul class="lista-diarios">
+        <?php foreach ($ultimosDiarios as $diario): ?>
+            <li class="lista-diarios__item<?= $diario->ehDiaPerdido() ? ' lista-diarios__item--perdido' : '' ?>">
+                <span class="lista-diarios__numero">RDO <?= e($diario->numero()) ?></span>
+                <span class="lista-diarios__data"><?= e(dataBr($diario->data)) ?></span>
+                <span class="lista-diarios__efetivo"><?= e($diario->efetivo()->total()) ?> pessoas</span>
+                <span class="lista-diarios__resumo">
+                    <?php if ($diario->ehDiaPerdido()): ?>
+                        dia impraticável
+                    <?php else: ?>
+                        <?= e(count($diario->atividades())) ?> atividade(s)
+                    <?php endif ?>
+                </span>
+            </li>
+        <?php endforeach ?>
+    </ul>
+    <p><a href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios">Ver todos os diários</a></p>
+<?php endif ?>

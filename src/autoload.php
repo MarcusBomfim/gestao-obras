@@ -10,6 +10,9 @@ declare(strict_types=1);
  * `vendor/autoload.php` — nada mais muda, porque a convenção é a mesma.
  */
 
+// Funções de apoio aos templates, no namespace global.
+require __DIR__ . DIRECTORY_SEPARATOR . 'ajudantes.php';
+
 spl_autoload_register(static function (string $classe): void {
     $prefixo = 'GestaoObras\\';
     $baseDeDiretorios = __DIR__ . DIRECTORY_SEPARATOR;

@@ -40,6 +40,14 @@ php ferramentas/semear.php
 
 O banco é criado em `banco/gestao-obras.sqlite`, fora do controle de versão. As duas ferramentas podem rodar quantas vezes for preciso: a migração pula o que já aplicou e a carga usa `ON CONFLICT DO NOTHING`.
 
+Depois, suba a aplicação:
+
+```bash
+php -S localhost:8000 -t public public/index.php
+```
+
+E abra <http://localhost:8000>. Não precisa de Apache nem nginx: o servidor embutido do PHP dá conta do desenvolvimento.
+
 ## Como rodar os testes
 
 ```bash
@@ -58,22 +66,35 @@ gestao-obras/
 ├── ferramentas/
 │   ├── migrar.php
 │   └── semear.php
+├── public/                   # raiz do servidor web
+│   ├── index.php             # ponto de entrada e montagem das rotas
+│   └── estilo.css
+├── visoes/                   # templates PHP
+│   ├── layout.php
+│   ├── obras/
+│   └── diarios/
 ├── src/
 │   ├── autoload.php          # autoloader PSR-4 sem Composer
+│   ├── ajudantes.php         # e(), reais(), dataBr() para os templates
 │   ├── Dominio/
 │   │   ├── Regras.php        # validações compartilhadas
 │   │   ├── ExcecaoDeDominio.php
-│   │   ├── Obra/             # Obra, Endereco, SituacaoDaObra, interface do repositório
-│   │   └── Servico/          # Servico, Unidade, interface do repositório
-│   └── Infraestrutura/
-│       ├── Banco/            # Conexao, Migrador
-│       └── Repositorio/      # implementações em SQLite
+│   │   ├── Obra/             # Obra, Endereco, SituacaoDaObra
+│   │   ├── Servico/          # Servico, Unidade
+│   │   └── Diario/           # DiarioDeObra, ClimaDoDia, Efetivo, Ocorrencia
+│   ├── Aplicacao/            # casos de uso e ResumoDaObra
+│   ├── Infraestrutura/
+│   │   ├── Banco/            # Conexao, Migrador
+│   │   └── Repositorio/      # implementações em SQLite
+│   └── Web/                  # Roteador, Requisicao, Resposta, Visao, Sessao
 ├── testes/
 │   ├── executar.php          # ponto de entrada
 │   ├── Executor.php          # executor de testes mínimo
 │   ├── ajuda.php             # banco em memória e objetos de exemplo
 │   ├── dominio/
-│   └── infraestrutura/
+│   ├── infraestrutura/
+│   ├── aplicacao/
+│   └── web/
 ├── composer.json
 └── README.md
 ```
@@ -157,10 +178,26 @@ O repositório é interface no domínio e implementação na infraestrutura. O d
 1. **Domínio: obra, serviços e regras** — concluída
 2. **Persistência: SQLite, migrations versionadas e repositórios** — concluída
 3. **Diário de obra: clima, efetivo, atividades e a regra de um por dia** — concluída
-4. Interface web: roteador, listagens e formulários
+4. **Interface web: roteador, listagens e formulários** — concluída
 5. Medição e avanço: curva física, previsto contra realizado
 6. Autenticação por papel, integração contínua e documentação final
 
+## Interface web
+
+Sem framework: um roteador próprio de cem linhas, templates em PHP e uma folha de estilo. É deliberado — o objetivo aqui é entender o ciclo da requisição, não delegá-lo.
+
+**O roteador distingue 404 de 405.** "O caminho não existe" e "o caminho existe mas não aceita esse verbo" são coisas diferentes, e o segundo caso responde com o cabeçalho `Allow` dizendo quais verbos servem. É o detalhe que separa um roteador de brinquedo de um de verdade.
+
+**Escapar é obrigação do template.** A função `e()` mora no namespace global, em `src/ajudantes.php`, e envolve todo valor interpolado. O nome é de uma letra de propósito: qualquer atrito aqui vira desculpa para esquecer, e é assim que nasce um XSS.
+
+**Toda alteração é POST com token.** Sem o token anti-CSRF, qualquer página externa poderia enviar um formulário em nome de quem está autenticado — apagar um diário, por exemplo. O navegador manda os cookies de qualquer jeito; o que o site de terceiro não consegue é adivinhar o token. A comparação usa `hash_equals`, não `===`, para o tempo da comparação não revelar quantos caracteres estavam certos.
+
+**Depois do POST vem redirecionamento, não HTML.** Status 303, que força o navegador a fazer GET no destino. É o padrão POST-Redirect-GET, e é o que impede o "reenviar formulário?" ao atualizar a página — que aqui significaria registrar o mesmo diário duas vezes.
+
+### O avanço da obra é ponderado
+
+`ResumoDaObra::percentualFisico()` divide valor executado por valor previsto, e não tira média dos percentuais dos serviços. Um serviço de R$ 84 mil concluído e outro de R$ 500 parado não são "50% da obra" — a média simples diria exatamente isso.
+
 ## Estado atual
 
-Parte 3 concluída. O sistema registra o dia a dia da obra e deriva dele o avanço físico de cada serviço, com a gravação do diário e a aplicação no orçamento na mesma transação. O que falta para virar produto é a interface — até aqui tudo se opera por código e por teste.
+Parte 4 concluída. O sistema tem interface: lista de obras com avanço, detalhe com os serviços do orçamento e o formulário de diário do dia. O que se digita ali entra direto no avanço físico — nenhum percentual é informado à mão em lugar nenhum.
