@@ -58,6 +58,41 @@ final class Obra
         $this->situacao = SituacaoDaObra::Planejada;
     }
 
+    /**
+     * Recria uma obra vinda do banco, com a situação que ela já tinha.
+     *
+     * O construtor sempre nasce planejada, porque é a única situação válida
+     * para uma obra nova. Restaurar estado é outra operação, e ganha caminho
+     * próprio em vez de um parâmetro opcional que ficaria disponível para
+     * quem está cadastrando.
+     */
+    public static function reconstituir(
+        string $codigo,
+        string $nome,
+        string $cliente,
+        Endereco $endereco,
+        DateTimeImmutable $dataDeInicio,
+        int $prazoEmDias,
+        string $responsavelTecnico,
+        string $registroProfissional,
+        SituacaoDaObra $situacao,
+    ): self {
+        $obra = new self(
+            $codigo,
+            $nome,
+            $cliente,
+            $endereco,
+            $dataDeInicio,
+            $prazoEmDias,
+            $responsavelTecnico,
+            $registroProfissional,
+        );
+
+        $obra->situacao = $situacao;
+
+        return $obra;
+    }
+
     public function situacao(): SituacaoDaObra
     {
         return $this->situacao;

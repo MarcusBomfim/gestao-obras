@@ -24,7 +24,21 @@ php -v
 
 Se ainda não tiver PHP no Windows: baixe o ZIP "Thread Safe" em [windows.php.net](https://windows.php.net/download), extraia em `C:\php` e adicione essa pasta ao PATH. O [XAMPP](https://www.apachefriends.org) também serve.
 
-Não é preciso Composer nem banco de dados para a Parte 1.
+A extensão `pdo_sqlite` já vem habilitada nas distribuições oficiais. Confira com `php -m | findstr sqlite`.
+
+Não é preciso Composer nem servidor de banco de dados.
+
+## Como rodar
+
+```bash
+php ferramentas/migrar.php
+```
+
+```bash
+php ferramentas/semear.php
+```
+
+O banco é criado em `banco/gestao-obras.sqlite`, fora do controle de versão. As duas ferramentas podem rodar quantas vezes for preciso: a migração pula o que já aplicou e a carga usa `ON CONFLICT DO NOTHING`.
 
 ## Como rodar os testes
 
@@ -32,23 +46,34 @@ Não é preciso Composer nem banco de dados para a Parte 1.
 php testes/executar.php
 ```
 
-Sai com código 0 quando tudo passa e 1 quando algo falha.
+Sai com código 0 quando tudo passa e 1 quando algo falha. Os testes de infraestrutura sobem um SQLite **em memória** e aplicam as migrations reais, então não deixam arquivo para trás nem dependem do banco de trabalho.
 
 ## Estrutura
 
 ```text
 gestao-obras/
+├── banco/
+│   ├── migrations/           # SQL versionado, aplicado em ordem
+│   └── seeds/                # dados de demonstração
+├── ferramentas/
+│   ├── migrar.php
+│   └── semear.php
 ├── src/
 │   ├── autoload.php          # autoloader PSR-4 sem Composer
-│   └── Dominio/
-│       ├── Regras.php        # validações compartilhadas
-│       ├── ExcecaoDeDominio.php
-│       ├── Obra/             # Obra, Endereco, SituacaoDaObra
-│       └── Servico/          # Servico, Unidade
+│   ├── Dominio/
+│   │   ├── Regras.php        # validações compartilhadas
+│   │   ├── ExcecaoDeDominio.php
+│   │   ├── Obra/             # Obra, Endereco, SituacaoDaObra, interface do repositório
+│   │   └── Servico/          # Servico, Unidade, interface do repositório
+│   └── Infraestrutura/
+│       ├── Banco/            # Conexao, Migrador
+│       └── Repositorio/      # implementações em SQLite
 ├── testes/
 │   ├── executar.php          # ponto de entrada
 │   ├── Executor.php          # executor de testes mínimo
-│   └── dominio/
+│   ├── ajuda.php             # banco em memória e objetos de exemplo
+│   ├── dominio/
+│   └── infraestrutura/
 ├── composer.json
 └── README.md
 ```
@@ -76,10 +101,26 @@ gestao-obras/
 
 Quantidade de obra é `float`, e `0.1 + 0.2` não é exatamente `0.3` em ponto flutuante. Sem folga, um serviço de 0,3 m³ executado em duas parcelas nunca fecharia em 100%. Todas as comparações passam por `Regras::maiorQue`, com tolerância de 0,001 — abaixo da precisão de qualquer medição de canteiro.
 
+## Banco de dados
+
+**SQLite**, para o projeto rodar sem servidor: quem clonar sobe tudo com o PHP e mais nada. O código fala PDO e o SQL é padrão, então trocar por MySQL ou PostgreSQL depois mexe na classe `Conexao` e nas migrations, não nas regras.
+
+As migrations são arquivos `.sql` numerados, aplicados em ordem e uma vez cada, com registro na tabela `migrations_aplicadas`. Cada uma roda dentro de uma transação: aplica inteira ou não aplica.
+
+Três detalhes valem destaque.
+
+**O SQLite ignora chave estrangeira por padrão.** É compatibilidade com versões antigas, e ninguém avisa: o `ON DELETE CASCADE` simplesmente não acontece. A classe `Conexao` executa `PRAGMA foreign_keys = ON` em toda conexão, e há um teste que insere um serviço órfão só para garantir que esse PRAGMA não suma.
+
+**A regra do previsto está nos dois lugares.** A classe `Servico` recusa apontamento acima do previsto, e a tabela `servicos` tem um `CHECK` dizendo o mesmo. Não é redundância desperdiçada: a validação da aplicação dá a mensagem boa para quem está usando, e a do banco garante que nenhum caminho escape — carga de dados, correção manual, ou dois apontamentos simultâneos.
+
+**Valores em `REAL` são uma simplificação conhecida.** Dinheiro em ponto flutuante é imprecisão acumulada, e o certo em produção seria guardar centavos como inteiro ou usar `DECIMAL`. Aqui o domínio já trabalha com `float`, e trocar isso é refatoração de domínio, não de persistência — fica anotado para uma etapa futura, não escondido.
+
+O repositório é interface no domínio e implementação na infraestrutura. O domínio pede uma obra pelo código e recebe uma `Obra`; que exista SQLite do outro lado é problema de quem implementa.
+
 ## Etapas do projeto
 
 1. **Domínio: obra, serviços e regras** — concluída
-2. Persistência em SQLite, migrations versionadas e repositórios
+2. **Persistência: SQLite, migrations versionadas e repositórios** — concluída
 3. Diário de obra (RDO): clima, efetivo, atividades e a regra de um por dia
 4. Interface web: roteador, listagens e formulários
 5. Medição e avanço: curva física, previsto contra realizado
@@ -87,4 +128,4 @@ Quantidade de obra é `float`, e `0.1 + 0.2` não é exatamente `0.3` em ponto f
 
 ## Estado atual
 
-Parte 1 concluída. O domínio está modelado e coberto por testes, sem depender de banco, framework ou Composer — dá para clonar e rodar `php testes/executar.php` com o PHP instalado e mais nada.
+Parte 2 concluída. O domínio persiste em SQLite com migrations versionadas, e os testes de repositório rodam contra o mesmo SQL que roda em produção — só que num banco em memória, criado e descartado a cada execução.

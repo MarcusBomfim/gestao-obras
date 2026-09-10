@@ -41,6 +41,39 @@ final class Servico
         $this->precoUnitario = Regras::numeroPositivo($precoUnitario, 'Preço unitário');
     }
 
+    /**
+     * Recria um serviço vindo do banco, com o que já estava apontado.
+     *
+     * Confere a consistência em vez de confiar: se o acumulado gravado passou
+     * do previsto, alguém escreveu direto no banco contornando a regra, e é
+     * melhor descobrir aqui do que propagar o número errado para a medição.
+     */
+    public static function reconstituir(
+        string $codigo,
+        string $descricao,
+        Unidade $unidade,
+        float $quantidadePrevista,
+        float $precoUnitario,
+        float $quantidadeExecutada,
+    ): self {
+        $servico = new self($codigo, $descricao, $unidade, $quantidadePrevista, $precoUnitario);
+
+        Regras::naoNegativo($quantidadeExecutada, 'Quantidade executada');
+
+        if (Regras::maiorQue($quantidadeExecutada, $quantidadePrevista)) {
+            throw new ExcecaoDeDominio(sprintf(
+                'O serviço %s está com %s apontado, acima do previsto de %s.',
+                $servico->codigo,
+                $unidade->formatar($quantidadeExecutada),
+                $unidade->formatar($quantidadePrevista),
+            ));
+        }
+
+        $servico->quantidadeExecutada = $quantidadeExecutada;
+
+        return $servico;
+    }
+
     public function quantidadeExecutada(): float
     {
         return $this->quantidadeExecutada;
