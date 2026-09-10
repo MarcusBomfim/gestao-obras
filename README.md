@@ -90,6 +90,41 @@ gestao-obras/
 | UF precisa existir; CEP precisa ter 8 dígitos | `Endereco` |
 | Executado nunca ultrapassa o previsto sem aditivo | `Servico::registrarExecucao` |
 | Unidades como `un` e `vb` não aceitam fração | `Unidade::aceitaFracao` |
+| Um diário por obra por dia | `UNIQUE (obra_codigo, data)` |
+| Diário não pode ter data futura | `DiarioDeObra::__construct` |
+| Dia impraticável nos três períodos não tem produção | `DiarioDeObra::registrarAtividade` |
+| Diário sem atividade nem ocorrência é recusado | `DiarioDeObra::exigirConsistencia` |
+| Acidente e paralisação exigem descrição detalhada | `TipoDeOcorrencia::exigeDescricaoDetalhada` |
+| Só obra em andamento aceita diário | `RegistrarDiarioDeObra` |
+| Diário e avanço entram juntos ou não entram | transação em `RegistrarDiarioDeObra` |
+
+## O diário de obra
+
+É o centro do sistema. Cada dia da obra gera um RDO com clima e condição de trabalho nos três períodos, efetivo por função, serviços executados e ocorrências.
+
+O avanço físico **nunca é digitado**: ele é a soma do que os diários apontaram. Registrar o diário e aplicar o avanço no orçamento acontecem na mesma transação — se um serviço estourar o previsto no meio do caminho, o diário inteiro é desfeito. O contrário deixaria um diário gravado cujo avanço não entrou, e ninguém descobriria até a medição não fechar.
+
+### Um diário por dia
+
+A regra que sustenta tudo é uma linha de SQL:
+
+```sql
+UNIQUE (obra_codigo, data)
+```
+
+Poderia estar na aplicação: consultar se já existe diário do dia antes de gravar. Mas duas requisições simultâneas leem antes de qualquer uma escrever, as duas passam na verificação e as duas gravam. Com a restrição no banco, a segunda recebe erro de unicidade, e o caso de uso traduz para uma mensagem legível. Deixa de ser improvável e passa a ser impossível.
+
+### Por que clima e condição são campos separados
+
+Chuva fraca pode ser praticável para serviço interno e impraticável para concretagem. Quem está no canteiro é que julga, e é esse julgamento que sustenta pedido de prorrogação de prazo. Com o registro diário, contar os dias perdidos vira uma consulta:
+
+```php
+$diarios->diasImpraticaveis($obra, $inicio, $fim);
+```
+
+### Corrigir um diário
+
+Diário gravado não é reescrito em silêncio — é documento contratual. Corrigir passa por remover e registrar de novo, e `RemoverDiarioDeObra` estorna do orçamento o que aquele diário tinha apontado. Apagar sem estornar deixaria o avanço inflado para sempre.
 
 ### Sobre o "não ultrapassa o previsto"
 
@@ -121,11 +156,11 @@ O repositório é interface no domínio e implementação na infraestrutura. O d
 
 1. **Domínio: obra, serviços e regras** — concluída
 2. **Persistência: SQLite, migrations versionadas e repositórios** — concluída
-3. Diário de obra (RDO): clima, efetivo, atividades e a regra de um por dia
+3. **Diário de obra: clima, efetivo, atividades e a regra de um por dia** — concluída
 4. Interface web: roteador, listagens e formulários
 5. Medição e avanço: curva física, previsto contra realizado
 6. Autenticação por papel, integração contínua e documentação final
 
 ## Estado atual
 
-Parte 2 concluída. O domínio persiste em SQLite com migrations versionadas, e os testes de repositório rodam contra o mesmo SQL que roda em produção — só que num banco em memória, criado e descartado a cada execução.
+Parte 3 concluída. O sistema registra o dia a dia da obra e deriva dele o avanço físico de cada serviço, com a gravação do diário e a aplicação no orçamento na mesma transação. O que falta para virar produto é a interface — até aqui tudo se opera por código e por teste.
