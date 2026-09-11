@@ -19,7 +19,7 @@
         </span>
         <a class="botao" href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios">Diários</a>
         <a class="botao" href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/medicoes">Medições</a>
-        <?php if ($obra->situacao()->aceitaExecucao()): ?>
+        <?php if ($obra->situacao()->aceitaExecucao() && ($usuarioAtual?->papel->podeApontarDiario() ?? false)): ?>
             <a class="botao botao--primario"
                href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/novo">Novo diário</a>
         <?php endif ?>

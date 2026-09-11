@@ -40,6 +40,12 @@ final class Resposta
         return new self(404, $corpo, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
 
+    /** Autenticado, mas sem permissão para esta ação. */
+    public static function proibido(string $corpo): self
+    {
+        return new self(403, $corpo, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
     /** @param string[] $permitidos verbos que a rota aceita, para o cabeçalho Allow */
     public static function metodoNaoPermitido(array $permitidos): self
     {

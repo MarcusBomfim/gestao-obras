@@ -27,19 +27,24 @@ if (PHP_SAPI === 'cli-server') {
 
 require dirname(__DIR__) . '/src/autoload.php';
 
+use GestaoObras\Aplicacao\Autenticador;
 use GestaoObras\Aplicacao\FecharMedicao;
 use GestaoObras\Aplicacao\GerarMedicao;
 use GestaoObras\Aplicacao\RegistrarDiarioDeObra;
 use GestaoObras\Aplicacao\RemoverDiarioDeObra;
+use GestaoObras\Dominio\Usuario\Papel;
 use GestaoObras\Infraestrutura\Banco\Conexao;
 use GestaoObras\Infraestrutura\Banco\Migrador;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeDiariosEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeMedicoesEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeObrasEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeServicosEmSqlite;
+use GestaoObras\Infraestrutura\Repositorio\RepositorioDeUsuariosEmSqlite;
+use GestaoObras\Web\Controlador\ControladorDeAcesso;
 use GestaoObras\Web\Controlador\ControladorDeDiarios;
 use GestaoObras\Web\Controlador\ControladorDeMedicoes;
 use GestaoObras\Web\Controlador\ControladorDeObras;
+use GestaoObras\Web\Guarda;
 use GestaoObras\Web\Requisicao;
 use GestaoObras\Web\Resposta;
 use GestaoObras\Web\Roteador;
@@ -77,6 +82,15 @@ $obras = new RepositorioDeObrasEmSqlite($conexao);
 $servicos = new RepositorioDeServicosEmSqlite($conexao);
 $diarios = new RepositorioDeDiariosEmSqlite($conexao);
 $medicoes = new RepositorioDeMedicoesEmSqlite($conexao);
+$usuarios = new RepositorioDeUsuariosEmSqlite($conexao);
+
+$guarda = new Guarda($sessao, $usuarios, $visao);
+
+// Quem está logado e o token chegam a todo template pelo layout.
+$visao->definirUsuario($guarda->usuarioAtual());
+$visao->definirTokenDaSessao($sessao->token());
+
+$controladorDeAcesso = new ControladorDeAcesso(new Autenticador($usuarios), $visao, $sessao);
 
 $controladorDeObras = new ControladorDeObras($obras, $servicos, $diarios, $visao, $sessao);
 
@@ -101,19 +115,27 @@ $controladorDeDiarios = new ControladorDeDiarios(
 
 $roteador = new Roteador();
 
+// As permissões moram no enum Papel; aqui só se diz qual cada rota exige.
+$apontar = static fn (Papel $papel): bool => $papel->podeApontarDiario();
+$medir = static fn (Papel $papel): bool => $papel->podeMedir();
+
 $roteador->get('/', static fn (): Resposta => Resposta::redirecionar('/obras'));
 
-$roteador->get('/obras', $controladorDeObras->lista(...));
-$roteador->get('/obras/{codigo}', $controladorDeObras->detalhe(...));
+$roteador->get('/entrar', $controladorDeAcesso->formulario(...));
+$roteador->post('/entrar', $controladorDeAcesso->entrar(...));
+$roteador->post('/sair', $controladorDeAcesso->sair(...));
 
-$roteador->get('/obras/{codigo}/diarios', $controladorDeDiarios->lista(...));
-$roteador->get('/obras/{codigo}/diarios/novo', $controladorDeDiarios->formulario(...));
-$roteador->post('/obras/{codigo}/diarios', $controladorDeDiarios->criar(...));
-$roteador->post('/obras/{codigo}/diarios/{numero}/remover', $controladorDeDiarios->remover(...));
+$roteador->get('/obras', $guarda->autenticado($controladorDeObras->lista(...)));
+$roteador->get('/obras/{codigo}', $guarda->autenticado($controladorDeObras->detalhe(...)));
 
-$roteador->get('/obras/{codigo}/medicoes', $controladorDeMedicoes->lista(...));
-$roteador->get('/obras/{codigo}/medicoes/{numero}', $controladorDeMedicoes->detalhe(...));
-$roteador->post('/obras/{codigo}/medicoes', $controladorDeMedicoes->criar(...));
-$roteador->post('/obras/{codigo}/medicoes/{numero}/fechar', $controladorDeMedicoes->fechar(...));
+$roteador->get('/obras/{codigo}/diarios', $guarda->autenticado($controladorDeDiarios->lista(...)));
+$roteador->get('/obras/{codigo}/diarios/novo', $guarda->com($apontar, $controladorDeDiarios->formulario(...)));
+$roteador->post('/obras/{codigo}/diarios', $guarda->com($apontar, $controladorDeDiarios->criar(...)));
+$roteador->post('/obras/{codigo}/diarios/{numero}/remover', $guarda->com($apontar, $controladorDeDiarios->remover(...)));
+
+$roteador->get('/obras/{codigo}/medicoes', $guarda->autenticado($controladorDeMedicoes->lista(...)));
+$roteador->get('/obras/{codigo}/medicoes/{numero}', $guarda->autenticado($controladorDeMedicoes->detalhe(...)));
+$roteador->post('/obras/{codigo}/medicoes', $guarda->com($medir, $controladorDeMedicoes->criar(...)));
+$roteador->post('/obras/{codigo}/medicoes/{numero}/fechar', $guarda->com($medir, $controladorDeMedicoes->fechar(...)));
 
 $roteador->despachar(Requisicao::dasSuperglobais())->enviar();

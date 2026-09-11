@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verificacao:
+    name: Sintaxe, testes e aplicação
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        # 8.1 é o mínimo declarado no README; a mais nova pega depreciações cedo.
+        php: ['8.1', '8.4']
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_sqlite, mbstring
+          coverage: none
+
+      # php -l em cada arquivo pega erro de sintaxe antes de qualquer teste
+      # rodar — e cobre os templates, que nenhum teste unitário executa.
+      - name: Sintaxe de todos os arquivos PHP
+        run: |
+          erros=0
+          while IFS= read -r arquivo; do
+            if ! php -l "$arquivo" > /dev/null; then
+              erros=$((erros + 1))
+            fi
+          done < <(find src testes public visoes ferramentas -name '*.php')
+          echo "arquivos com erro de sintaxe: $erros"
+          exit $erros
+
+      - name: Testes
+        run: php testes/executar.php
+
+      # Sobe o banco de verdade, carrega os dados e confere que a aplicação
+      # responde. É o mais perto de "abriu no navegador" que a CI chega.
+      - name: Migrations e carga
+        run: |
+          php ferramentas/migrar.php
+          php ferramentas/semear.php
+
+      - name: A aplicação responde
+        run: |
+          php -S 127.0.0.1:8000 -t public public/index.php > servidor.log 2>&1 &
+          sleep 2
+
+          # Sem login, a lista de obras redireciona para /entrar.
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/obras)
+          echo "GET /obras sem sessão: $status"
+          test "$status" = "303"
+
+          # A página de login abre.
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/entrar)
+          echo "GET /entrar: $status"
+          test "$status" = "200"
+
+          # O CSS é servido pelo servidor embutido.
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/estilo.css)
+          echo "GET /estilo.css: $status"
+          test "$status" = "200"
+
+          # Rota inexistente dá 404, verbo errado dá 405.
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/nao-existe)
+          echo "GET /nao-existe: $status"
+          test "$status" = "404"
+
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE http://127.0.0.1:8000/entrar)
+          echo "DELETE /entrar: $status"
+          test "$status" = "405"
+
+      - name: Log do servidor
+        if: failure()
+        run: cat servidor.log || true

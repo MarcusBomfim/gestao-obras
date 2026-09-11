@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GestaoObras\Web;
 
+use GestaoObras\Dominio\Usuario\Usuario;
 use RuntimeException;
 
 /**
@@ -15,6 +16,9 @@ use RuntimeException;
  */
 final class Visao
 {
+    private ?Usuario $usuarioAtual = null;
+    private string $tokenDaSessao = '';
+
     public function __construct(private readonly string $diretorio)
     {
     }
@@ -24,14 +28,30 @@ final class Visao
         return new self(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'visoes');
     }
 
+    /** Quem está logado chega a todo template como $usuarioAtual. */
+    public function definirUsuario(?Usuario $usuario): void
+    {
+        $this->usuarioAtual = $usuario;
+    }
+
+    /** O token anti-CSRF chega ao layout para o formulário de sair. */
+    public function definirTokenDaSessao(string $token): void
+    {
+        $this->tokenDaSessao = $token;
+    }
+
     /** @param array<string, mixed> $dados */
     public function renderizar(string $template, array $dados = [], string $titulo = ''): string
     {
+        $dados['usuarioAtual'] = $this->usuarioAtual;
+
         $conteudo = $this->capturar($template, $dados);
 
         return $this->capturar('layout', [
             'conteudo' => $conteudo,
             'titulo' => $titulo,
+            'usuarioAtual' => $this->usuarioAtual,
+            'tokenDaSessao' => $this->tokenDaSessao,
             'mensagem' => $dados['mensagem'] ?? null,
             'erro' => $dados['erro'] ?? null,
         ]);

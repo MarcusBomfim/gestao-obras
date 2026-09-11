@@ -17,6 +17,45 @@ final class Sessao
     private const CHAVE_TOKEN = '_token';
     private const CHAVE_MENSAGEM = '_mensagem';
     private const CHAVE_ERRO = '_erro';
+    private const CHAVE_USUARIO = '_usuario';
+
+    /**
+     * Marca a sessão como autenticada.
+     *
+     * Regenera o id no login para a sessão anônima anterior não virar sessão
+     * autenticada. É a defesa contra fixação de sessão: sem isto, quem
+     * conseguisse plantar um id de sessão no navegador da vítima passaria a
+     * compartilhar a sessão dela depois do login.
+     */
+    public function entrar(string $email): void
+    {
+        $this->iniciar();
+
+        session_regenerate_id(true);
+
+        $_SESSION[self::CHAVE_USUARIO] = $email;
+
+        // Sessão nova, token novo.
+        unset($_SESSION[self::CHAVE_TOKEN]);
+    }
+
+    public function sair(): void
+    {
+        $this->iniciar();
+
+        $_SESSION = [];
+        session_regenerate_id(true);
+        session_destroy();
+    }
+
+    public function emailAtual(): ?string
+    {
+        $this->iniciar();
+
+        $email = $_SESSION[self::CHAVE_USUARIO] ?? null;
+
+        return is_string($email) && $email !== '' ? $email : null;
+    }
 
     public function iniciar(): void
     {

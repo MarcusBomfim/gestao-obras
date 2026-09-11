@@ -13,8 +13,11 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/autoload.php';
 
+use GestaoObras\Dominio\Usuario\Papel;
+use GestaoObras\Dominio\Usuario\Usuario;
 use GestaoObras\Infraestrutura\Banco\Conexao;
 use GestaoObras\Infraestrutura\Banco\Migrador;
+use GestaoObras\Infraestrutura\Repositorio\RepositorioDeUsuariosEmSqlite;
 
 $conexao = Conexao::abrir();
 
@@ -38,7 +41,37 @@ try {
     exit(1);
 }
 
+/*
+ * As contas ficam fora do SQL de propósito: o hash da senha precisa ser gerado
+ * pelo password_hash() do PHP, com sal aleatório, e não copiado de um arquivo.
+ * Conta que já existe não é sobrescrita — se você trocou a senha, ela fica.
+ */
+$usuarios = new RepositorioDeUsuariosEmSqlite($conexao);
+
+$contas = [
+    ['engenheiro@obras.dev', 'Marcus Bomfim', Papel::Engenheiro, 'Engenheiro@123'],
+    ['mestre@obras.dev', 'Helena Duarte', Papel::MestreDeObras, 'Mestre@123'],
+    ['cliente@obras.dev', 'Rafael Nunes', Papel::Cliente, 'Cliente@123'],
+];
+
+$criadas = 0;
+
+foreach ($contas as [$email, $nome, $papel, $senha]) {
+    if ($usuarios->existe($email)) {
+        continue;
+    }
+
+    $usuarios->salvar(Usuario::criar($email, $nome, $papel, $senha));
+    $criadas++;
+}
+
 $obras = (int) $conexao->query('SELECT COUNT(*) FROM obras')->fetchColumn();
 $servicos = (int) $conexao->query('SELECT COUNT(*) FROM servicos')->fetchColumn();
 
-printf('Banco carregado: %d obras e %d serviços.%s', $obras, $servicos, PHP_EOL);
+printf(
+    'Banco carregado: %d obras, %d serviços e %d conta(s) nova(s).%s',
+    $obras,
+    $servicos,
+    $criadas,
+    PHP_EOL,
+);

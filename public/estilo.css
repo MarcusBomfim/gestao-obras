@@ -424,3 +424,32 @@ code {
 
 /* Item de medição sem movimento no período. */
 .linha--parada td { color: var(--texto-fraco); }
+
+/* ---------- acesso ---------- */
+
+.cartao--acesso {
+    max-width: 26rem;
+    margin: 3rem auto 0;
+}
+
+.formulario--acesso { margin-top: 1rem; gap: 0.9rem; }
+
+.contas-demo { margin-top: 1.5rem; font-size: 0.85rem; }
+.contas-demo summary { cursor: pointer; color: var(--texto-fraco); }
+.contas-demo .tabela { margin-top: 0.6rem; font-size: 0.8rem; }
+
+.topo__usuario {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-size: 0.85rem;
+}
+
+.topo__nome { font-weight: 600; }
+
+.botao--discreto {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+    color: var(--texto-fraco);
+}

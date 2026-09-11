@@ -12,7 +12,18 @@
             <span class="topo__sigla">GO</span>
             <span>Gestão de Obras</span>
         </a>
-        <p class="topo__legenda">Diário de obra, avanço físico e medição</p>
+        <?php if (($usuarioAtual ?? null) !== null): ?>
+            <div class="topo__usuario">
+                <span class="topo__nome"><?= e($usuarioAtual->nome) ?></span>
+                <span class="etiqueta"><?= e($usuarioAtual->papel->rotulo()) ?></span>
+                <form method="post" action="/sair">
+                    <input type="hidden" name="token" value="<?= e($tokenDaSessao ?? '') ?>">
+                    <button type="submit" class="botao botao--discreto">Sair</button>
+                </form>
+            </div>
+        <?php else: ?>
+            <p class="topo__legenda">Diário de obra, avanço físico e medição</p>
+        <?php endif ?>
     </header>
 
     <main class="pagina">

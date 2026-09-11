@@ -20,7 +20,7 @@
             <?= e($medicao->situacao()->rotulo()) ?>
         </span>
 
-        <?php if (!$medicao->estaFechada()): ?>
+        <?php if (!$medicao->estaFechada() && ($usuarioAtual?->papel->podeMedir() ?? false)): ?>
             <form method="post"
                   action="/obras/<?= e(rawurlencode($obra->codigo)) ?>/medicoes/<?= e($medicao->numero()) ?>/fechar"
                   onsubmit="return confirm('Fechar a medição nº <?= e($medicao->numero()) ?>? Depois disso ela vira documento e não pode mais ser alterada.');">

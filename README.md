@@ -48,6 +48,18 @@ php -S localhost:8000 -t public public/index.php
 
 E abra <http://localhost:8000>. Não precisa de Apache nem nginx: o servidor embutido do PHP dá conta do desenvolvimento.
 
+### Contas de demonstração
+
+Criadas por `php ferramentas/semear.php` e destinadas apenas a desenvolvimento:
+
+| E-mail | Senha | Papel | Pode |
+| --- | --- | --- | --- |
+| engenheiro@obras.dev | `Engenheiro@123` | Engenheiro | tudo: diários, medições e fechamento |
+| mestre@obras.dev | `Mestre@123` | Mestre de obras | registrar e corrigir diários |
+| cliente@obras.dev | `Cliente@123` | Cliente | somente leitura |
+
+As senhas não estão no SQL de carga: o `semear.php` gera o hash com `password_hash()` na hora, com sal aleatório. Conta que já existe não é sobrescrita.
+
 ## Como rodar os testes
 
 ```bash
@@ -72,6 +84,7 @@ gestao-obras/
 ├── visoes/                   # templates PHP
 │   ├── layout.php
 │   ├── obras/
+│   ├── acesso/
 │   ├── diarios/
 │   └── medicoes/
 ├── src/
@@ -83,12 +96,14 @@ gestao-obras/
 │   │   ├── Obra/             # Obra, Endereco, SituacaoDaObra
 │   │   ├── Servico/          # Servico, Unidade
 │   │   ├── Diario/           # DiarioDeObra, ClimaDoDia, Efetivo, Ocorrencia
-│   │   └── Medicao/          # Medicao, ItemDeMedicao
-│   ├── Aplicacao/            # casos de uso, ResumoDaObra e CurvaDeAvanco
+│   │   ├── Medicao/          # Medicao, ItemDeMedicao
+│   │   └── Usuario/          # Usuario, Papel
+│   ├── Aplicacao/            # casos de uso, Autenticador, ResumoDaObra, CurvaDeAvanco
 │   ├── Infraestrutura/
 │   │   ├── Banco/            # Conexao, Migrador
 │   │   └── Repositorio/      # implementações em SQLite
-│   └── Web/                  # Roteador, Requisicao, Resposta, Visao, Sessao
+│   └── Web/                  # Roteador, Requisicao, Resposta, Visao, Sessao, Guarda
+├── .github/workflows/ci.yml  # sintaxe, testes e aplicação no ar, em PHP 8.1 e 8.4
 ├── testes/
 │   ├── executar.php          # ponto de entrada
 │   ├── Executor.php          # executor de testes mínimo
@@ -186,7 +201,58 @@ O repositório é interface no domínio e implementação na infraestrutura. O d
 3. **Diário de obra: clima, efetivo, atividades e a regra de um por dia** — concluída
 4. **Interface web: roteador, listagens e formulários** — concluída
 5. **Medição e curva de avanço** — concluída
-6. Autenticação por papel, integração contínua e documentação final
+6. **Acesso por papel, integração contínua e documentação** — concluída
+
+## Acesso e papéis
+
+Três papéis, espelhando quem circula numa obra:
+
+| Papel | Consulta | Diários | Medições |
+| --- | --- | --- | --- |
+| Engenheiro | sim | registra e remove | gera e fecha |
+| Mestre de obras | sim | registra e remove | só consulta |
+| Cliente | sim | só consulta | só consulta |
+
+As permissões moram no enum `Papel` — `podeApontarDiario()`, `podeMedir()` — e o `index.php` só diz qual rota exige qual. Nenhum controlador tem `if ($papel === ...)`.
+
+**A permissão é conferida no servidor, a cada requisição, lendo o usuário no banco.** A interface esconde os botões que o papel não pode usar, mas isso é cortesia: quem enviar o POST direto recebe 403. Desativar uma conta ou trocar o papel dela vale no acesso seguinte, sem esperar a sessão expirar.
+
+## Segurança
+
+O que está implementado, em camadas:
+
+| Camada | Proteção |
+| --- | --- |
+| Senha | `password_hash` com bcrypt e sal aleatório; a senha em texto nunca chega ao banco. Hash com custo antigo é regravado no login |
+| Login | uma mensagem só para e-mail e senha errados; conta inexistente passa por um `password_verify` de isca para custar o mesmo tempo que a real |
+| Sessão | `session_regenerate_id` no login contra fixação; cookie `HttpOnly` e `SameSite=Strict` |
+| Formulários | token anti-CSRF em todo POST, comparado com `hash_equals` |
+| Redirecionamento | o `voltar` do login só aceita caminho local começando com uma barra — `//evil.com` é recusado |
+| Saída | `e()` em toda interpolação de template; `$conteudo` no layout é o único ponto sem escape, e está comentado |
+| Banco | consulta preparada em todo comando; `PRAGMA foreign_keys = ON` em toda conexão; as regras críticas repetidas em `CHECK` e `UNIQUE` |
+| Erros | mensagem de negócio para quem usa; erro inesperado vira mensagem genérica, sem detalhe interno |
+
+## Integração contínua
+
+O workflow em `.github/workflows/ci.yml` roda a cada push e pull request na `main`, em PHP 8.1 e 8.4:
+
+1. `php -l` em todos os arquivos, templates incluídos — nenhum teste unitário executa template, e é lá que erro de sintaxe se esconde;
+2. os testes;
+3. migrations e carga num banco novo;
+4. sobe o servidor embutido e confere com `curl` que a aplicação responde: `/obras` sem sessão redireciona, `/entrar` abre, o CSS é servido, rota inexistente dá 404 e verbo errado dá 405.
+
+O último passo é o mais perto de "abriu no navegador" que a CI chega.
+
+## Limitações conhecidas
+
+Anotadas aqui em vez de escondidas — é o tipo de coisa que um revisor deve encontrar no README, não no código.
+
+- **Dinheiro em `float` e `REAL`.** Produção pediria centavos como inteiro ou `DECIMAL`. O domínio nasceu em `float` e trocar é refatoração de domínio, não de persistência.
+- **Sem limite de tentativas no login.** O `password_verify` de isca protege contra descobrir quais e-mails existem, mas não contra força bruta na senha. Um contador por e-mail e por IP, com bloqueio temporário, é o próximo passo.
+- **Sem cronograma físico-financeiro.** A linha de referência da curva de avanço supõe ritmo constante. Um cronograma de verdade tem marcos e pesos por etapa.
+- **Sem aditivo.** O sistema recusa executar acima do previsto e diz que é preciso um aditivo, mas não tem como registrar um. Seria uma nova quantidade prevista com data e justificativa, mantendo a original para auditoria.
+- **Medições consecutivas, não apenas não sobrepostas.** É mais restritivo que o necessário, porque o SQLite não tem constraint de exclusão. No PostgreSQL seria uma linha de `EXCLUDE USING GIST`.
+- **Sessão em arquivo.** Basta para um servidor. Com mais de um, a sessão precisa ir para banco ou Redis.
 
 ## Medição
 
@@ -232,4 +298,4 @@ Sem framework: um roteador próprio de cem linhas, templates em PHP e uma folha 
 
 ## Estado atual
 
-Parte 5 concluída. O ciclo completo funciona: o diário registra o dia a dia, o serviço acumula o avanço, a medição recorta o período e produz a memória de cálculo, e a curva mostra o ritmo da obra contra o esperado. Falta a etapa 6 — autenticação por papel, integração contínua e a documentação final.
+Projeto concluído. O ciclo completo funciona de ponta a ponta com controle de acesso: o mestre de obras registra o diário, o serviço acumula o avanço, o engenheiro recorta o período e fecha a medição, e o cliente acompanha tudo sem poder alterar nada. A integração contínua confere sintaxe, testes e a aplicação no ar a cada alteração.

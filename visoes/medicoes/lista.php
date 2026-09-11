@@ -11,6 +11,7 @@
     </div>
 </header>
 
+<?php if ($usuarioAtual?->papel->podeMedir() ?? false): ?>
 <section class="cartao" style="margin-top:1.25rem">
     <h2 class="subtitulo" style="margin-top:0">Gerar medição do período</h2>
     <p class="dica">
@@ -45,6 +46,12 @@
         sem buraco e sem sobreposição.
     </p>
 </section>
+<?php else: ?>
+<p class="dica" style="margin-top:1rem">
+    Gerar e fechar medição é atribuição do engenheiro responsável. Você pode consultar
+    a memória de cálculo de cada uma.
+</p>
+<?php endif ?>
 
 <h2 class="subtitulo">Medições da obra</h2>
 

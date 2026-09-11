@@ -10,14 +10,15 @@
         <p class="cabecalho-obra__cliente"><?= e($obra->nome) ?></p>
     </div>
 
+    <?php $podeApontar = $usuarioAtual?->papel->podeApontarDiario() ?? false; ?>
     <div class="cabecalho-obra__acoes">
-        <?php if ($obra->situacao()->aceitaExecucao()): ?>
-            <a class="botao botao--primario"
-               href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/novo">Novo diário</a>
-        <?php else: ?>
+        <?php if (!$obra->situacao()->aceitaExecucao()): ?>
             <span class="dica">
                 A obra está <?= e(mb_strtolower($obra->situacao()->rotulo())) ?> e não aceita diário.
             </span>
+        <?php elseif ($podeApontar): ?>
+            <a class="botao botao--primario"
+               href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/novo">Novo diário</a>
         <?php endif ?>
     </div>
 </header>
@@ -76,12 +77,14 @@
                             <?php endif ?>
                         </td>
                         <td>
-                            <form method="post"
-                                  action="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/<?= e($diario->numero()) ?>/remover"
-                                  onsubmit="return confirm('Remover o RDO <?= e($diario->numero()) ?> e estornar as quantidades do orçamento?');">
-                                <input type="hidden" name="token" value="<?= e($token) ?>">
-                                <button type="submit" class="botao botao--perigo">Remover</button>
-                            </form>
+                            <?php if ($podeApontar): ?>
+                                <form method="post"
+                                      action="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/<?= e($diario->numero()) ?>/remover"
+                                      onsubmit="return confirm('Remover o RDO <?= e($diario->numero()) ?> e estornar as quantidades do orçamento?');">
+                                    <input type="hidden" name="token" value="<?= e($token) ?>">
+                                    <button type="submit" class="botao botao--perigo">Remover</button>
+                                </form>
+                            <?php endif ?>
                         </td>
                     </tr>
                 <?php endforeach ?>
