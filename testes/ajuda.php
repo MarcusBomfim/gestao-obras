@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use GestaoObras\Aplicacao\FecharMedicao;
+use GestaoObras\Aplicacao\GerarMedicao;
 use GestaoObras\Aplicacao\RegistrarDiarioDeObra;
 use GestaoObras\Aplicacao\RemoverDiarioDeObra;
+use GestaoObras\Dominio\Diario\AtividadeExecutada;
 use GestaoObras\Dominio\Diario\ClimaDoDia;
 use GestaoObras\Dominio\Diario\DiarioDeObra;
 use GestaoObras\Dominio\Obra\Endereco;
@@ -13,6 +16,7 @@ use GestaoObras\Dominio\Servico\Unidade;
 use GestaoObras\Infraestrutura\Banco\Conexao;
 use GestaoObras\Infraestrutura\Banco\Migrador;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeDiariosEmSqlite;
+use GestaoObras\Infraestrutura\Repositorio\RepositorioDeMedicoesEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeObrasEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeServicosEmSqlite;
 
@@ -101,12 +105,26 @@ function ambienteDeObraEmAndamento(): array
 
     $servicos->salvar('OBR-2026-001', servicoDeExemplo('ALV-01'));
 
+    $medicoes = new RepositorioDeMedicoesEmSqlite($conexao);
+
     return [
         'conexao' => $conexao,
         'obras' => $obras,
         'servicos' => $servicos,
         'diarios' => $diarios,
+        'medicoes' => $medicoes,
         'registrar' => new RegistrarDiarioDeObra($conexao, $obras, $servicos, $diarios),
         'remover' => new RemoverDiarioDeObra($conexao, $servicos, $diarios),
+        'gerarMedicao' => new GerarMedicao($conexao, $obras, $servicos, $diarios, $medicoes),
+        'fecharMedicao' => new FecharMedicao($medicoes),
     ];
+}
+
+/** Registra um diário com uma atividade, em uma chamada. */
+function apontar(array $app, string $data, float $quantidade, string $servico = 'ALV-01'): int
+{
+    $diario = diarioDeExemplo($data);
+    $diario->registrarAtividade(new AtividadeExecutada($servico, $quantidade));
+
+    return $app['registrar']->executar($diario);
 }

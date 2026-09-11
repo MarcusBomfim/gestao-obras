@@ -398,3 +398,29 @@ code {
     .fatos { grid-template-columns: 1fr; }
     .cabecalho-obra__acoes { margin-left: 0; }
 }
+
+/* ---------- curva de avanço ---------- */
+
+.curva { display: block; min-width: 30rem; }
+
+.curva__grade { stroke: var(--borda); stroke-width: 1; }
+
+.curva__rotulo { fill: var(--texto-fraco); font-size: 10px; }
+
+/* Tracejado porque é referência, não medição: a reta é uma suposição. */
+.curva__esperado {
+    stroke: var(--texto-fraco);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 4;
+    opacity: 0.7;
+}
+
+.curva__linha {
+    stroke: var(--destaque);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+/* Item de medição sem movimento no período. */
+.linha--parada td { color: var(--texto-fraco); }

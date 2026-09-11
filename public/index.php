@@ -27,14 +27,18 @@ if (PHP_SAPI === 'cli-server') {
 
 require dirname(__DIR__) . '/src/autoload.php';
 
+use GestaoObras\Aplicacao\FecharMedicao;
+use GestaoObras\Aplicacao\GerarMedicao;
 use GestaoObras\Aplicacao\RegistrarDiarioDeObra;
 use GestaoObras\Aplicacao\RemoverDiarioDeObra;
 use GestaoObras\Infraestrutura\Banco\Conexao;
 use GestaoObras\Infraestrutura\Banco\Migrador;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeDiariosEmSqlite;
+use GestaoObras\Infraestrutura\Repositorio\RepositorioDeMedicoesEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeObrasEmSqlite;
 use GestaoObras\Infraestrutura\Repositorio\RepositorioDeServicosEmSqlite;
 use GestaoObras\Web\Controlador\ControladorDeDiarios;
+use GestaoObras\Web\Controlador\ControladorDeMedicoes;
 use GestaoObras\Web\Controlador\ControladorDeObras;
 use GestaoObras\Web\Requisicao;
 use GestaoObras\Web\Resposta;
@@ -72,8 +76,18 @@ $sessao->iniciar();
 $obras = new RepositorioDeObrasEmSqlite($conexao);
 $servicos = new RepositorioDeServicosEmSqlite($conexao);
 $diarios = new RepositorioDeDiariosEmSqlite($conexao);
+$medicoes = new RepositorioDeMedicoesEmSqlite($conexao);
 
 $controladorDeObras = new ControladorDeObras($obras, $servicos, $diarios, $visao, $sessao);
+
+$controladorDeMedicoes = new ControladorDeMedicoes(
+    $obras,
+    $medicoes,
+    new GerarMedicao($conexao, $obras, $servicos, $diarios, $medicoes),
+    new FecharMedicao($medicoes),
+    $visao,
+    $sessao,
+);
 
 $controladorDeDiarios = new ControladorDeDiarios(
     $obras,
@@ -96,5 +110,10 @@ $roteador->get('/obras/{codigo}/diarios', $controladorDeDiarios->lista(...));
 $roteador->get('/obras/{codigo}/diarios/novo', $controladorDeDiarios->formulario(...));
 $roteador->post('/obras/{codigo}/diarios', $controladorDeDiarios->criar(...));
 $roteador->post('/obras/{codigo}/diarios/{numero}/remover', $controladorDeDiarios->remover(...));
+
+$roteador->get('/obras/{codigo}/medicoes', $controladorDeMedicoes->lista(...));
+$roteador->get('/obras/{codigo}/medicoes/{numero}', $controladorDeMedicoes->detalhe(...));
+$roteador->post('/obras/{codigo}/medicoes', $controladorDeMedicoes->criar(...));
+$roteador->post('/obras/{codigo}/medicoes/{numero}/fechar', $controladorDeMedicoes->fechar(...));
 
 $roteador->despachar(Requisicao::dasSuperglobais())->enviar();

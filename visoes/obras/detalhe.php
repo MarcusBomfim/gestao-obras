@@ -18,6 +18,7 @@
             <?= e($obra->situacao()->rotulo()) ?>
         </span>
         <a class="botao" href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios">Diários</a>
+        <a class="botao" href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/medicoes">Medições</a>
         <?php if ($obra->situacao()->aceitaExecucao()): ?>
             <a class="botao botao--primario"
                href="/obras/<?= e(rawurlencode($obra->codigo)) ?>/diarios/novo">Novo diário</a>
@@ -50,6 +51,58 @@
         </span>
     </article>
 </section>
+
+<h2 class="subtitulo">Curva de avanço</h2>
+
+<?php if (!$curva->temMovimento()): ?>
+    <section class="cartao cartao--vazio">
+        <p>Nenhum serviço executado ainda — a curva começa com o primeiro diário.</p>
+    </section>
+<?php else: ?>
+    <?php
+    $largura = 720;
+    $altura = 200;
+    $esperado = $curva->avancoLinearEsperado($hoje);
+    $yEsperado = $altura - 4 - ($esperado / 100) * ($altura - 8);
+    ?>
+    <section class="cartao">
+        <div class="rolagem">
+            <svg class="curva" viewBox="0 0 <?= e($largura) ?> <?= e($altura) ?>"
+                 width="100%" height="<?= e($altura) ?>" role="img"
+                 aria-label="Curva de avanço acumulado da obra, chegando a <?= e(numeroBr($curva->percentualFinal())) ?> por cento">
+                <?php foreach ([0, 25, 50, 75, 100] as $marca): ?>
+                    <?php $y = $altura - 4 - ($marca / 100) * ($altura - 8); ?>
+                    <line class="curva__grade" x1="0" y1="<?= e($y) ?>"
+                          x2="<?= e($largura) ?>" y2="<?= e($y) ?>"></line>
+                    <text class="curva__rotulo" x="4" y="<?= e($y - 3) ?>"><?= e($marca) ?>%</text>
+                <?php endforeach ?>
+
+                <line class="curva__esperado" x1="0" y1="<?= e($altura - 4) ?>"
+                      x2="<?= e($largura) ?>" y2="<?= e($yEsperado) ?>"></line>
+
+                <polyline class="curva__linha" fill="none"
+                          points="<?= e($curva->polilinha($largura, $altura)) ?>"></polyline>
+            </svg>
+        </div>
+
+        <dl class="fatos">
+            <div>
+                <dt>Executado até hoje</dt>
+                <dd><?= e(numeroBr($curva->percentualFinal())) ?>%</dd>
+            </div>
+            <div>
+                <dt>Ritmo linear esperado</dt>
+                <dd><?= e(numeroBr($esperado)) ?>%</dd>
+            </div>
+        </dl>
+
+        <p class="dica">
+            A linha reta é a referência mais ingênua possível: supõe ritmo constante do
+            primeiro ao último dia do prazo. Serve de comparação enquanto o sistema não
+            tem cronograma físico-financeiro de verdade.
+        </p>
+    </section>
+<?php endif ?>
 
 <h2 class="subtitulo">Serviços do orçamento</h2>
 

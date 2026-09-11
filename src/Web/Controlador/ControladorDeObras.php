@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GestaoObras\Web\Controlador;
 
+use GestaoObras\Aplicacao\CurvaDeAvanco;
 use GestaoObras\Aplicacao\ResumoDaObra;
 use GestaoObras\Dominio\Diario\RepositorioDeDiarios;
 use GestaoObras\Dominio\Obra\RepositorioDeObras;
@@ -55,13 +56,27 @@ final class ControladorDeObras
         }
 
         $servicos = $this->servicos->daObra($obra->codigo);
+        $resumo = new ResumoDaObra($obra, $servicos);
+        $hoje = new \DateTimeImmutable('today');
+
+        // A curva vai do início da obra até hoje, ou até o fim previsto se a
+        // obra já terminou — não faz sentido desenhar futuro vazio.
+        $fimDaCurva = min($hoje, max($obra->dataPrevistaDeTermino(), $obra->dataDeInicio));
+
+        $curva = new CurvaDeAvanco(
+            $this->diarios->valorExecutadoPorDia($obra->codigo, $obra->dataDeInicio, $fimDaCurva),
+            $resumo->valorPrevisto(),
+            $obra->dataDeInicio,
+            max($fimDaCurva, $obra->dataDeInicio),
+        );
 
         return Resposta::html($this->visao->renderizar('obras.detalhe', [
-            'resumo' => new ResumoDaObra($obra, $servicos),
+            'resumo' => $resumo,
             'servicos' => $servicos,
+            'curva' => $curva,
             // Os últimos diários dão o pulso da obra sem sair da página.
             'ultimosDiarios' => array_slice($this->diarios->daObra($obra->codigo), 0, 5),
-            'hoje' => new \DateTimeImmutable('today'),
+            'hoje' => $hoje,
             'mensagem' => $this->sessao->tirarMensagem(),
             'erro' => $this->sessao->tirarErro(),
         ], $obra->nome));

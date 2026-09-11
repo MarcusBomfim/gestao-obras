@@ -72,7 +72,8 @@ gestao-obras/
 ├── visoes/                   # templates PHP
 │   ├── layout.php
 │   ├── obras/
-│   └── diarios/
+│   ├── diarios/
+│   └── medicoes/
 ├── src/
 │   ├── autoload.php          # autoloader PSR-4 sem Composer
 │   ├── ajudantes.php         # e(), reais(), dataBr() para os templates
@@ -81,8 +82,9 @@ gestao-obras/
 │   │   ├── ExcecaoDeDominio.php
 │   │   ├── Obra/             # Obra, Endereco, SituacaoDaObra
 │   │   ├── Servico/          # Servico, Unidade
-│   │   └── Diario/           # DiarioDeObra, ClimaDoDia, Efetivo, Ocorrencia
-│   ├── Aplicacao/            # casos de uso e ResumoDaObra
+│   │   ├── Diario/           # DiarioDeObra, ClimaDoDia, Efetivo, Ocorrencia
+│   │   └── Medicao/          # Medicao, ItemDeMedicao
+│   ├── Aplicacao/            # casos de uso, ResumoDaObra e CurvaDeAvanco
 │   ├── Infraestrutura/
 │   │   ├── Banco/            # Conexao, Migrador
 │   │   └── Repositorio/      # implementações em SQLite
@@ -118,6 +120,10 @@ gestao-obras/
 | Acidente e paralisação exigem descrição detalhada | `TipoDeOcorrencia::exigeDescricaoDetalhada` |
 | Só obra em andamento aceita diário | `RegistrarDiarioDeObra` |
 | Diário e avanço entram juntos ou não entram | transação em `RegistrarDiarioDeObra` |
+| Medições são consecutivas, sem buraco nem sobreposição | `GerarMedicao` |
+| Medição fechada não recebe nem altera item | `Medicao::fechar` |
+| Competências fecham em ordem | `FecharMedicao` |
+| Período de medição não pode estar no futuro | `Medicao::__construct` |
 
 ## O diário de obra
 
@@ -179,8 +185,34 @@ O repositório é interface no domínio e implementação na infraestrutura. O d
 2. **Persistência: SQLite, migrations versionadas e repositórios** — concluída
 3. **Diário de obra: clima, efetivo, atividades e a regra de um por dia** — concluída
 4. **Interface web: roteador, listagens e formulários** — concluída
-5. Medição e avanço: curva física, previsto contra realizado
+5. **Medição e curva de avanço** — concluída
 6. Autenticação por papel, integração contínua e documentação final
+
+## Medição
+
+A medição recorta um período e diz quanto da obra pode ser faturado nele, com a memória de cálculo linha a linha: o que já havia sido medido antes, o que entra agora e o total acumulado. Sem os três números, a conferência com o cliente vira "confia em mim".
+
+**A conta é refeita a partir dos diários**, e não lida do acumulado guardado no serviço. Custa uma consulta a mais e devolve uma propriedade que vale o preço: cada linha da memória é rastreável até o dia que a originou — que é exatamente o que se pede quando uma fatura é questionada.
+
+### O que o SQLite não faz
+
+Duas medições da mesma obra não podem cobrir períodos sobrepostos; seria faturar o mesmo serviço duas vezes. No PostgreSQL isso caberia em uma linha:
+
+```sql
+EXCLUDE USING GIST (obra_codigo WITH =, DATERANGE(inicio, fim, '[]') WITH &&)
+```
+
+O SQLite não tem `EXCLUDE` nem tipo de intervalo. A garantia aqui vem de outro lado: **as medições de uma obra são consecutivas**, e cada uma precisa começar no dia seguinte ao fim da anterior. É uma regra mais restritiva do que "não sobrepor" — e, por sorte, descreve como o setor mede de verdade, competência após competência.
+
+Está documentado no SQL da migration, e não escondido: é o tipo de decisão que um revisor deve poder auditar.
+
+### Preços copiados, não referenciados
+
+Os itens da medição guardam descrição e preço unitário próprios, em vez de apontarem para o serviço. Medição fechada é documento: precisa continuar mostrando o preço que valia na competência, mesmo que o orçamento seja aditivado depois.
+
+### Curva de avanço
+
+`CurvaDeAvanco` acumula o valor executado por dia e desenha a curva S em SVG gerado no servidor — sem biblioteca de gráfico. A linha tracejada ao lado é o ritmo linear esperado, e o README é explícito sobre o que ela é: a referência mais ingênua possível, supondo ritmo constante do primeiro ao último dia. Serve de comparação enquanto o sistema não tem cronograma físico-financeiro de verdade.
 
 ## Interface web
 
@@ -200,4 +232,4 @@ Sem framework: um roteador próprio de cem linhas, templates em PHP e uma folha 
 
 ## Estado atual
 
-Parte 4 concluída. O sistema tem interface: lista de obras com avanço, detalhe com os serviços do orçamento e o formulário de diário do dia. O que se digita ali entra direto no avanço físico — nenhum percentual é informado à mão em lugar nenhum.
+Parte 5 concluída. O ciclo completo funciona: o diário registra o dia a dia, o serviço acumula o avanço, a medição recorta o período e produz a memória de cálculo, e a curva mostra o ritmo da obra contra o esperado. Falta a etapa 6 — autenticação por papel, integração contínua e a documentação final.

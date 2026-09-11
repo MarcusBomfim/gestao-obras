@@ -163,6 +163,77 @@ final class RepositorioDeDiariosEmSqlite implements RepositorioDeDiarios
         return (int) $consulta->fetchColumn();
     }
 
+    public function somaPorServico(
+        string $obraCodigo,
+        ?DateTimeImmutable $inicio,
+        DateTimeImmutable $fim,
+    ): array {
+        $filtroDeInicio = $inicio === null ? '' : ' AND d.data >= :inicio';
+
+        $consulta = $this->conexao->prepare(
+            'SELECT a.servico_codigo AS servico, SUM(a.quantidade) AS total
+             FROM diario_atividades a
+             JOIN diarios d ON d.obra_codigo = a.obra_codigo AND d.numero = a.numero
+             WHERE a.obra_codigo = :obra_codigo AND d.data <= :fim' . $filtroDeInicio . '
+             GROUP BY a.servico_codigo
+             ORDER BY a.servico_codigo'
+        );
+
+        $parametros = [
+            ':obra_codigo' => self::normalizar($obraCodigo),
+            ':fim' => $fim->format('Y-m-d'),
+        ];
+
+        if ($inicio !== null) {
+            $parametros[':inicio'] = $inicio->format('Y-m-d');
+        }
+
+        $consulta->execute($parametros);
+
+        $somas = [];
+
+        foreach ($consulta->fetchAll() as $linha) {
+            $somas[(string) $linha['servico']] = (float) $linha['total'];
+        }
+
+        return $somas;
+    }
+
+    public function valorExecutadoPorDia(
+        string $obraCodigo,
+        DateTimeImmutable $inicio,
+        DateTimeImmutable $fim,
+    ): array {
+        /*
+         * A multiplicação pelo preço acontece no SQL: a curva pode cobrir a
+         * obra inteira, e trazer cada atividade para o PHP só para multiplicar
+         * seria carregar centenas de linhas à toa.
+         */
+        $consulta = $this->conexao->prepare(
+            'SELECT d.data AS dia, SUM(a.quantidade * s.preco_unitario) AS valor
+             FROM diario_atividades a
+             JOIN diarios d ON d.obra_codigo = a.obra_codigo AND d.numero = a.numero
+             JOIN servicos s ON s.obra_codigo = a.obra_codigo AND s.codigo = a.servico_codigo
+             WHERE a.obra_codigo = :obra_codigo AND d.data BETWEEN :inicio AND :fim
+             GROUP BY d.data
+             ORDER BY d.data'
+        );
+
+        $consulta->execute([
+            ':obra_codigo' => self::normalizar($obraCodigo),
+            ':inicio' => $inicio->format('Y-m-d'),
+            ':fim' => $fim->format('Y-m-d'),
+        ]);
+
+        $porDia = [];
+
+        foreach ($consulta->fetchAll() as $linha) {
+            $porDia[(string) $linha['dia']] = round((float) $linha['valor'], 2);
+        }
+
+        return $porDia;
+    }
+
     public function remover(string $obraCodigo, int $numero): void
     {
         // Efetivo, atividades e ocorrências saem em cascata.
