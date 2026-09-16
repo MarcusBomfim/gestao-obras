@@ -173,14 +173,15 @@ final class Obra
 
     /**
      * CREA e CAU seguem formatos diferentes por estado, então a validação aqui
-     * é só de forma: letras, dígitos, traços e barras, entre 5 e 30 caracteres.
+     * é só de forma: letras, dígitos, espaços, traços, barras e pontos, entre
+     * 5 e 30 caracteres — "CREA-SP 5069874521/D" e "CAU A118472-3" passam.
      * Conferir se o registro existe de verdade é consulta a órgão externo.
      */
     private static function validarRegistro(string $registro): string
     {
         $limpo = strtoupper(Regras::textoObrigatorio($registro, 'Registro profissional', 30));
 
-        if (preg_match('/^[A-Z0-9\-\/\.]{5,30}$/', $limpo) !== 1) {
+        if (preg_match('/^[A-Z0-9 \-\/\.]{5,30}$/', $limpo) !== 1) {
             throw new ExcecaoDeDominio(
                 "Registro profissional inválido: {$registro}. Informe o CREA ou o CAU."
             );

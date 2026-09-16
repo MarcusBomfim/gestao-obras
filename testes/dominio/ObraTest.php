@@ -63,7 +63,7 @@ grupo('Obra: situação');
 teste('planejada só pode ir para em andamento', function (): void {
     $obra = obraDeTeste();
 
-    lanca(ExcecaoDeDominio::class, static fn () => $obra->concluir(), 'não é possível');
+    lanca(ExcecaoDeDominio::class, static fn () => $obra->concluir(), 'Não é possível');
     lanca(ExcecaoDeDominio::class, static fn () => $obra->paralisar());
 
     $obra->iniciar();

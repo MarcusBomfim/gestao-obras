@@ -61,9 +61,15 @@ final class RegistrarDiarioDeObra
         $this->conexao->beginTransaction();
 
         try {
-            $numero = $this->diarios->salvar($diario);
-
+            /*
+             * O orçamento vem antes de gravar o diário: é aqui que se descobre
+             * serviço fora do orçamento, com o código na mensagem. Na ordem
+             * inversa a chave estrangeira das atividades recusaria primeiro, e
+             * o que chegaria à tela seria a tradução genérica lá embaixo.
+             */
             $this->aplicarNoOrcamento($diario);
+
+            $numero = $this->diarios->salvar($diario);
 
             $this->conexao->commit();
 
@@ -134,7 +140,7 @@ final class RegistrarDiarioDeObra
 
         if (str_contains($mensagem, 'FOREIGN KEY')) {
             return new ExcecaoDeDominio(
-                'Alguma atividade aponta um serviço que não pertence ao orçamento desta obra.'
+                'Alguma atividade aponta um serviço que não está no orçamento desta obra.'
             );
         }
 
