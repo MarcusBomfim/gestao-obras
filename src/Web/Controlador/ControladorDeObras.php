@@ -68,6 +68,7 @@ final class ControladorDeObras
             $resumo->valorPrevisto(),
             $obra->dataDeInicio,
             max($fimDaCurva, $obra->dataDeInicio),
+            $obra->dataPrevistaDeTermino(),
         );
 
         return Resposta::html($this->visao->renderizar('obras.detalhe', [

@@ -50,9 +50,15 @@ if (!function_exists('dataBr')) {
 }
 
 if (!function_exists('barraDeAvanco')) {
-    /** Largura da barra de progresso, limitada a 100 mesmo com arredondamento. */
+    /**
+     * Largura da barra de progresso, limitada a 100 mesmo com arredondamento.
+     *
+     * Com ponto, não vírgula: o valor vai para um "width" do CSS, e "27,3%"
+     * é declaração inválida — o navegador ignora e a barra aparece cheia,
+     * em toda obra, inclusive na que está em 0 %.
+     */
     function barraDeAvanco(float $percentual): string
     {
-        return numeroBr(max(0.0, min(100.0, $percentual)), 1);
+        return number_format(max(0.0, min(100.0, $percentual)), 1, '.', '');
     }
 }

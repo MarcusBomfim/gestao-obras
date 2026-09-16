@@ -11,6 +11,10 @@ namespace GestaoObras\Web;
  * qualquer página externa poderia enviar um formulário em nome de quem está
  * autenticado — apagar um diário, por exemplo. O navegador manda os cookies
  * de qualquer jeito; o que o site de terceiro não consegue é adivinhar o token.
+ *
+ * Em memória, para os testes: a mesma classe, sem session_start(). O que se
+ * testa é o comportamento — token, login, mensagens —, não o mecanismo de
+ * cookie do PHP, que os testes não conseguem exercitar na linha de comando.
  */
 final class Sessao
 {
@@ -18,6 +22,17 @@ final class Sessao
     private const CHAVE_MENSAGEM = '_mensagem';
     private const CHAVE_ERRO = '_erro';
     private const CHAVE_USUARIO = '_usuario';
+
+    /** @var array<string, mixed>|null nulo quando a sessão é a do PHP */
+    private ?array $memoria = null;
+
+    public static function emMemoria(): self
+    {
+        $sessao = new self();
+        $sessao->memoria = [];
+
+        return $sessao;
+    }
 
     /**
      * Marca a sessão como autenticada.
@@ -29,37 +44,39 @@ final class Sessao
      */
     public function entrar(string $email): void
     {
-        $this->iniciar();
+        $dados = &$this->dados();
 
-        session_regenerate_id(true);
+        if ($this->memoria === null) {
+            session_regenerate_id(true);
+        }
 
-        $_SESSION[self::CHAVE_USUARIO] = $email;
+        $dados[self::CHAVE_USUARIO] = $email;
 
         // Sessão nova, token novo.
-        unset($_SESSION[self::CHAVE_TOKEN]);
+        unset($dados[self::CHAVE_TOKEN]);
     }
 
     public function sair(): void
     {
-        $this->iniciar();
+        $dados = &$this->dados();
+        $dados = [];
 
-        $_SESSION = [];
-        session_regenerate_id(true);
-        session_destroy();
+        if ($this->memoria === null) {
+            session_regenerate_id(true);
+            session_destroy();
+        }
     }
 
     public function emailAtual(): ?string
     {
-        $this->iniciar();
-
-        $email = $_SESSION[self::CHAVE_USUARIO] ?? null;
+        $email = $this->dados()[self::CHAVE_USUARIO] ?? null;
 
         return is_string($email) && $email !== '' ? $email : null;
     }
 
     public function iniciar(): void
     {
-        if (session_status() === PHP_SESSION_ACTIVE) {
+        if ($this->memoria !== null || session_status() === PHP_SESSION_ACTIVE) {
             return;
         }
 
@@ -74,13 +91,13 @@ final class Sessao
 
     public function token(): string
     {
-        $this->iniciar();
+        $dados = &$this->dados();
 
-        if (!isset($_SESSION[self::CHAVE_TOKEN]) || !is_string($_SESSION[self::CHAVE_TOKEN])) {
-            $_SESSION[self::CHAVE_TOKEN] = bin2hex(random_bytes(32));
+        if (!isset($dados[self::CHAVE_TOKEN]) || !is_string($dados[self::CHAVE_TOKEN])) {
+            $dados[self::CHAVE_TOKEN] = bin2hex(random_bytes(32));
         }
 
-        return $_SESSION[self::CHAVE_TOKEN];
+        return $dados[self::CHAVE_TOKEN];
     }
 
     /**
@@ -89,23 +106,21 @@ final class Sessao
      */
     public function tokenValido(string $enviado): bool
     {
-        $this->iniciar();
-
-        $guardado = $_SESSION[self::CHAVE_TOKEN] ?? null;
+        $guardado = $this->dados()[self::CHAVE_TOKEN] ?? null;
 
         return is_string($guardado) && $guardado !== '' && hash_equals($guardado, $enviado);
     }
 
     public function guardarMensagem(string $mensagem): void
     {
-        $this->iniciar();
-        $_SESSION[self::CHAVE_MENSAGEM] = $mensagem;
+        $dados = &$this->dados();
+        $dados[self::CHAVE_MENSAGEM] = $mensagem;
     }
 
     public function guardarErro(string $erro): void
     {
-        $this->iniciar();
-        $_SESSION[self::CHAVE_ERRO] = $erro;
+        $dados = &$this->dados();
+        $dados[self::CHAVE_ERRO] = $erro;
     }
 
     /** Lê e apaga: a mensagem aparece uma vez só, na página seguinte. */
@@ -121,11 +136,28 @@ final class Sessao
 
     private function tirar(string $chave): ?string
     {
-        $this->iniciar();
+        $dados = &$this->dados();
 
-        $valor = $_SESSION[$chave] ?? null;
-        unset($_SESSION[$chave]);
+        $valor = $dados[$chave] ?? null;
+        unset($dados[$chave]);
 
         return is_string($valor) ? $valor : null;
+    }
+
+    /**
+     * Onde a sessão mora: no $_SESSION do PHP ou no array em memória. É
+     * devolvido por referência para as escritas chegarem ao lugar certo.
+     *
+     * @return array<string, mixed>
+     */
+    private function &dados(): array
+    {
+        if ($this->memoria !== null) {
+            return $this->memoria;
+        }
+
+        $this->iniciar();
+
+        return $_SESSION;
     }
 }

@@ -324,6 +324,21 @@ teste('o avanço linear esperado acompanha o calendário', function (): void {
     igualAproximado(100.0, $curva->avancoLinearEsperado(dia('2026-03-01')), 'não passa de 100');
 });
 
+teste('o ritmo esperado é do prazo contratual, não do trecho desenhado', function (): void {
+    // Obra de 100 dias, desenhada só até o dia 25: o esperado hoje é 25 %,
+    // e não 100 % por a curva terminar hoje.
+    $curva = new CurvaDeAvanco(
+        ['2026-02-10' => 1000.0],
+        10000.0,
+        dia('2026-02-01'),
+        dia('2026-02-25'),
+        dia('2026-05-11'),
+    );
+
+    igualAproximado(25.0, $curva->avancoLinearEsperado(dia('2026-02-25')));
+    igualAproximado(10.0, $curva->percentualFinal(), 'o executado continua sendo o que foi apontado');
+});
+
 teste('gera pontos de SVG dentro da área da imagem', function (): void {
     $curva = new CurvaDeAvanco(
         ['2026-02-10' => 5000.0, '2026-02-28' => 5000.0],

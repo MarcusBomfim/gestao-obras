@@ -38,7 +38,7 @@ php ferramentas/migrar.php
 php ferramentas/semear.php
 ```
 
-O banco é criado em `banco/gestao-obras.sqlite`, fora do controle de versão. As duas ferramentas podem rodar quantas vezes for preciso: a migração pula o que já aplicou e a carga usa `ON CONFLICT DO NOTHING`.
+O banco é criado em `banco/gestao-obras.sqlite`, fora do controle de versão. A carga de demonstração é feita em PHP, pelo domínio e pelos casos de uso — três obras, 127 diários registrados um a um e as medições geradas a partir deles, com datas relativas a hoje. Assim a obra em andamento está sempre no meio do prazo, a curva de avanço tem o que desenhar e a medição do mês corrente está sempre em aberto. As duas ferramentas podem rodar quantas vezes for preciso: a migração pula o que já aplicou e a carga não repete o que já existe. Para recarregar do zero, apague o arquivo `.sqlite` e rode as duas de novo.
 
 Depois, suba a aplicação:
 
@@ -58,7 +58,7 @@ Criadas por `php ferramentas/semear.php` e destinadas apenas a desenvolvimento:
 | mestre@obras.dev | `Mestre@123` | Mestre de obras | registrar e corrigir diários |
 | cliente@obras.dev | `Cliente@123` | Cliente | somente leitura |
 
-As senhas não estão no SQL de carga: o `semear.php` gera o hash com `password_hash()` na hora, com sal aleatório. Conta que já existe não é sobrescrita.
+As senhas não estão em arquivo nenhum: o `semear.php` gera o hash com `password_hash()` na hora, com sal aleatório. Conta que já existe não é sobrescrita.
 
 ## Como rodar os testes
 
@@ -68,18 +68,19 @@ php testes/executar.php
 
 Sai com código 0 quando tudo passa e 1 quando algo falha. Os testes de infraestrutura sobem um SQLite **em memória** e aplicam as migrations reais, então não deixam arquivo para trás nem dependem do banco de trabalho.
 
+Os testes em `testes/web/FluxoTest.php` atravessam a aplicação inteira sem servidor: login, diário pelo formulário, medição, permissão negada ao cliente, token forjado. Usam a mesma `Montagem` que o `public/index.php`, com uma `Sessao` em memória no lugar da sessão do PHP, e qualquer aviso emitido por um template vira falha.
+
 ## Estrutura
 
 ```text
 gestao-obras/
 ├── banco/
-│   ├── migrations/           # SQL versionado, aplicado em ordem
-│   └── seeds/                # dados de demonstração
+│   └── migrations/           # SQL versionado, aplicado em ordem
 ├── ferramentas/
 │   ├── migrar.php
-│   └── semear.php
+│   └── semear.php            # dados de demonstração, gerados pelo domínio
 ├── public/                   # raiz do servidor web
-│   ├── index.php             # ponto de entrada e montagem das rotas
+│   ├── index.php             # ponto de entrada: banco, sessão e Montagem
 │   └── estilo.css
 ├── visoes/                   # templates PHP
 │   ├── layout.php
@@ -102,7 +103,7 @@ gestao-obras/
 │   ├── Infraestrutura/
 │   │   ├── Banco/            # Conexao, Migrador
 │   │   └── Repositorio/      # implementações em SQLite
-│   └── Web/                  # Roteador, Requisicao, Resposta, Visao, Sessao, Guarda
+│   └── Web/                  # Roteador, Requisicao, Resposta, Visao, Sessao, Guarda, Montagem
 ├── .github/workflows/ci.yml  # sintaxe, testes e aplicação no ar, em PHP 8.1 e 8.4
 ├── testes/
 │   ├── executar.php          # ponto de entrada
@@ -213,7 +214,7 @@ Três papéis, espelhando quem circula numa obra:
 | Mestre de obras | sim | registra e remove | só consulta |
 | Cliente | sim | só consulta | só consulta |
 
-As permissões moram no enum `Papel` — `podeApontarDiario()`, `podeMedir()` — e o `index.php` só diz qual rota exige qual. Nenhum controlador tem `if ($papel === ...)`.
+As permissões moram no enum `Papel` — `podeApontarDiario()`, `podeMedir()` — e a `Montagem` só diz qual rota exige qual. Nenhum controlador tem `if ($papel === ...)`.
 
 **A permissão é conferida no servidor, a cada requisição, lendo o usuário no banco.** A interface esconde os botões que o papel não pode usar, mas isso é cortesia: quem enviar o POST direto recebe 403. Desativar uma conta ou trocar o papel dela vale no acesso seguinte, sem esperar a sessão expirar.
 

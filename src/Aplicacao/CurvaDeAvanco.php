@@ -17,12 +17,17 @@ use DateTimeImmutable;
  */
 final class CurvaDeAvanco
 {
-    /** @param array<string, float> $valorPorDia data ISO => valor executado no dia */
+    /**
+     * @param array<string, float> $valorPorDia     data ISO => valor executado no dia
+     * @param ?DateTimeImmutable   $terminoPrevisto fim do prazo contratual; quando a
+     *        curva é desenhada só até hoje, é ele que dá o ritmo esperado
+     */
     public function __construct(
         private readonly array $valorPorDia,
         public readonly float $valorPrevisto,
         public readonly DateTimeImmutable $inicio,
         public readonly DateTimeImmutable $fim,
+        private readonly ?DateTimeImmutable $terminoPrevisto = null,
     ) {
     }
 
@@ -89,10 +94,14 @@ final class CurvaDeAvanco
      * É a referência mais ingênua possível — supõe ritmo constante do primeiro
      * ao último dia. Serve como linha de comparação enquanto o sistema não tem
      * cronograma físico-financeiro de verdade, e o README diz isso.
+     *
+     * O "último dia" é o fim do prazo, não o fim do desenho: uma obra na
+     * metade do contrato, desenhada até hoje, tem 50 % esperados — não 100 %.
      */
     public function avancoLinearEsperado(DateTimeImmutable $referencia): float
     {
-        $total = (int) $this->inicio->diff($this->fim)->days + 1;
+        $ultimoDia = $this->terminoPrevisto ?? $this->fim;
+        $total = (int) $this->inicio->diff($ultimoDia)->days + 1;
 
         if ($total <= 0) {
             return 0.0;
